@@ -10,6 +10,11 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   mongodb:
     image: mongo
@@ -20,6 +25,14 @@ services:
       - "27017:27017"
     volumes:
       - mongodata:/data/db
+    healthcheck:
+      test: [
+        "CMD", "mongosh", "--quiet", "127.0.0.1/test", "--eval", "'quit(db.runCommand({ping: 1}).ok ? 0 : 2)'"
+      ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
@@ -27,14 +40,73 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
-    environment:
-      RABBITMQ_DEFAULT_USER: dev
-      RABBITMQ_DEFAULT_PASS: dev
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      test: rabbitmq-diagnostics check_port_connectivity
       interval: 5s
       timeout: 5s
-      retries: 20
+      retries: 5
+  
+  auction-svc:
+    image: dadudev/auction-svc:latest
+    build:
+      context: .
+      dockerfile: src/AuctionService/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=server=postgres;Port=5432;Database=auctions;Username=postgres;Password=dadapeer888
+      - IdentityServer__Authority=http://identity-svc
+    ports:
+      - 5014:80
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+  
+  search-svc:
+    image: dadudev/search-svc:latest
+    build: 
+      context: .
+      dockerfile: src/SearchService/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__MongoDbConnection=mongodb://root:dadapeer888@mongodb:27017
+      - AuctionServiceUrl=http://auction-svc
+    ports:
+      - 5047:80
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  identity-svc:
+    image: dadudev/identity-svc:latest
+    build:
+      context: .
+      dockerfile: src/IdentityService/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=server=postgres;Port=5432;Database=identity;Username=postgres;Password=dadapeer888
+    ports:
+      - 5000:80
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gateway-svc:
+    image: dadudev/gateway-svc:latest
+    build:
+      context: .
+      dockerfile: src/GatewayService/Dockerfile
+    environment:
+     - ASPNETCORE_ENVIRONMENT=Docker
+     - ASPNETCORE_URLS=http://+:80 
+    ports:
+      - 5004:80
 
 volumes:
   pgdata:
