@@ -117,6 +117,7 @@ services:
       - 3000:80
     depends_on:
       - gateway-svc
+      - identity-svc
 
 volumes:
   pgdata:

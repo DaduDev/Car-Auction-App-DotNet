@@ -24,6 +24,16 @@ internal static class HostingExtensions
             .AddEntityFrameworkStores<ApplicationDbContext>()
             .AddDefaultTokenProviders();
 
+        builder.Services.AddCors(options =>
+        {
+            options.AddPolicy("AllowFrontend", policy =>
+            {
+                policy.WithOrigins("http://localhost:3000")
+                      .AllowAnyHeader()
+                      .AllowAnyMethod()
+                      .AllowCredentials();
+            });
+        });
 
         builder.Services.AddIdentityServer(options =>
             {
@@ -42,6 +52,7 @@ internal static class HostingExtensions
             .AddAspNetIdentity<User>()
             .AddProfileService<CustomerProfileService>();
         
+        builder.Services.AddControllers();
         builder.Services.AddAuthorization();
         builder.Services.AddAuthentication();
         builder.Services.AddRazorPages();
@@ -65,6 +76,8 @@ internal static class HostingExtensions
             app.UseDeveloperExceptionPage();
         }
 
+        app.UseCors("AllowFrontend");
+
         // uncomment if you want to add a UI
         app.UseStaticFiles();
         app.UseRouting();
@@ -73,6 +86,7 @@ internal static class HostingExtensions
 
         // uncomment if you want to add a UI
         app.UseAuthorization();
+        app.MapControllers();
         app.MapRazorPages();
 
         return app;
