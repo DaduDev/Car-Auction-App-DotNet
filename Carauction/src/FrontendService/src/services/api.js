@@ -23,4 +23,9 @@ export const auctionService = {
   deleteAuction: (id) => api.delete(`/auctions/${id}`),
 };
 
+export const bidService = {
+  getBidsForAuction: (auctionId) => api.get(`/bids/${auctionId}`),
+  placeBid: (auctionId, amount) => api.post(`/bids?AuctionId=${auctionId}&Amount=${amount}`),
+};
+
 export default api;

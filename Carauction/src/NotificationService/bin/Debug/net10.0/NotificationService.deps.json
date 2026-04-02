@@ -1,0 +1,107 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "NotificationService/1.0.0": {
+        "dependencies": {
+          "Contracts": "1.0.0",
+          "MassTransit.RabbitMQ": "8.1.1"
+        },
+        "runtime": {
+          "NotificationService.dll": {}
+        }
+      },
+      "MassTransit/8.1.1": {
+        "dependencies": {
+          "MassTransit.Abstractions": "8.1.1"
+        },
+        "runtime": {
+          "lib/net7.0/MassTransit.dll": {
+            "assemblyVersion": "8.1.1.0",
+            "fileVersion": "8.1.1.0"
+          }
+        }
+      },
+      "MassTransit.Abstractions/8.1.1": {
+        "runtime": {
+          "lib/net7.0/MassTransit.Abstractions.dll": {
+            "assemblyVersion": "8.1.1.0",
+            "fileVersion": "8.1.1.0"
+          }
+        }
+      },
+      "MassTransit.RabbitMQ/8.1.1": {
+        "dependencies": {
+          "MassTransit": "8.1.1",
+          "RabbitMQ.Client": "6.5.0"
+        },
+        "runtime": {
+          "lib/net7.0/MassTransit.RabbitMqTransport.dll": {
+            "assemblyVersion": "8.1.1.0",
+            "fileVersion": "8.1.1.0"
+          }
+        }
+      },
+      "RabbitMQ.Client/6.5.0": {
+        "runtime": {
+          "lib/netstandard2.0/RabbitMQ.Client.dll": {
+            "assemblyVersion": "6.0.0.0",
+            "fileVersion": "6.5.0.0"
+          }
+        }
+      },
+      "Contracts/1.0.0": {
+        "runtime": {
+          "Contracts.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "NotificationService/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "MassTransit/8.1.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-Vy8GinrC/uGhazdlVhF2rKggzSyAB8CCNci3cvNwoBFuG5Nc29hiwED/71xMXEbYOLChIG+ntw9eiqwify8+xg==",
+      "path": "masstransit/8.1.1",
+      "hashPath": "masstransit.8.1.1.nupkg.sha512"
+    },
+    "MassTransit.Abstractions/8.1.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-fe6isUE0S87Px/Qkg5fkg8ymhax87SNdcOgOtOxo5ZUm8Er9VgmUBwHGYg8fHywDri6xGCJtLucFSaUIu2Urrw==",
+      "path": "masstransit.abstractions/8.1.1",
+      "hashPath": "masstransit.abstractions.8.1.1.nupkg.sha512"
+    },
+    "MassTransit.RabbitMQ/8.1.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-QoBc4jy0mM5i8Rut8L8q5nrq2nOmXMRuogLeuu2hb8gjSdXvj5dtiGrBa5+wO97YWrbmmnp/VPys5IuOGdLv6Q==",
+      "path": "masstransit.rabbitmq/8.1.1",
+      "hashPath": "masstransit.rabbitmq.8.1.1.nupkg.sha512"
+    },
+    "RabbitMQ.Client/6.5.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-9hY5HiWPtCla1/l0WmXmLnqoX7iKE3neBQUWnetIJrRpOvTbO//XQfQDh++xgHCshL40Kv/6bR0HDkmJz46twg==",
+      "path": "rabbitmq.client/6.5.0",
+      "hashPath": "rabbitmq.client.6.5.0.nupkg.sha512"
+    },
+    "Contracts/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

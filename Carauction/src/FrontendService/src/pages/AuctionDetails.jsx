@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Calendar, Clock, DollarSign, Gauge, Palette, User, ArrowLeft } from 'lucide-react';
-import { auctionService } from '../services/api';
+import { auctionService, bidService } from '../services/api';
+import { useSignalR } from '../hooks/useSignalR';
 import { formatDistanceToNow, format } from 'date-fns';
 import toast from 'react-hot-toast';
 
@@ -9,22 +10,91 @@ export default function AuctionDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [auction, setAuction] = useState(null);
+  const [bids, setBids] = useState([]);
+  const [bidAmount, setBidAmount] = useState('');
+  const [bidding, setBidding] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const username = localStorage.getItem('username');
   const isAuthenticated = !!localStorage.getItem('access_token');
 
-  useEffect(() => {
-    fetchAuction();
+  const handleBidPlaced = useCallback((bid) => {
+    if (bid.auctionId !== id) return;
+    setBids((prev) => [bid, ...prev]);
+    if (bid.bidStatus === 'Accepted' || bid.bidStatus === 'AcceptedBelowReserve') {
+      setAuction((prev) => prev ? { ...prev, currentHighBid: bid.amount } : prev);
+    }
+    if (bid.bidder === username) {
+      const msg = bid.bidStatus === 'Accepted' ? 'Bid accepted!' :
+        bid.bidStatus === 'AcceptedBelowReserve' ? 'Bid accepted (below reserve)' :
+        bid.bidStatus === 'TooLow' ? 'Bid too low' : 'Auction finished';
+      bid.bidStatus === 'TooLow' ? toast.error(msg) : toast.success(msg);
+    }
+  }, [id, username]);
+
+  const handleAuctionFinished = useCallback((data) => {
+    if (data.auctionId !== id) return;
+    setAuction((prev) => prev ? { ...prev, status: 'Finished', winner: data.winner, soldAmount: data.amount } : prev);
+    toast(data.itemSold ? `Sold to ${data.winner} for $${data.amount?.toLocaleString()}` : 'Auction ended - reserve not met');
   }, [id]);
 
-  const fetchAuction = async () => {
+  useSignalR(handleBidPlaced, handleAuctionFinished);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [auctionRes, bidsRes] = await Promise.all([
+          auctionService.getAuctionById(id),
+          bidService.getBidsForAuction(id),
+        ]);
+        setAuction(auctionRes.data);
+        setBids(bidsRes.data);
+      } catch {
+        toast.error('Failed to load auction details');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [id]);
+
+  const handlePlaceBid = async (e) => {
+    e.preventDefault();
+    const amount = parseInt(bidAmount);
+    if (!amount || amount <= 0) return toast.error('Enter a valid amount');
+    if (auction.currentHighBid && amount <= auction.currentHighBid) {
+      return toast.error(`Bid must be higher than current bid of $${auction.currentHighBid.toLocaleString()}`);
+    }
+    setBidding(true);
     try {
-      const response = await auctionService.getAuctionById(id);
-      setAuction(response.data);
-    } catch (error) {
-      console.error('Error fetching auction:', error);
-      toast.error('Failed to load auction details');
+      const res = await bidService.placeBid(id, amount);
+      const status = res.data.bidStatus;
+      if (status === 'TooLow') toast.error('Bid too low');
+      else if (status === 'Finished') toast.error('Auction has finished');
+      else toast.success(status === 'Accepted' ? 'Bid placed!' : 'Bid placed (below reserve)');
+      setBidAmount('');
+    } catch (err) {
+      toast.error(err.response?.data || 'Failed to place bid');
     } finally {
-      setLoading(false);
+      setBidding(false);
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'live': return 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200';
+      case 'finished': return 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200';
+      case 'reservenotmet': return 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200';
+      default: return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
+    }
+  };
+
+  const getBidStatusColor = (status) => {
+    switch (status) {
+      case 'Accepted': return 'text-green-600 dark:text-green-400';
+      case 'AcceptedBelowReserve': return 'text-yellow-600 dark:text-yellow-400';
+      case 'TooLow': return 'text-red-600 dark:text-red-400';
+      default: return 'text-gray-500 dark:text-gray-400';
     }
   };
 
@@ -40,25 +110,13 @@ export default function AuctionDetails() {
     return (
       <div className="max-w-7xl mx-auto px-4 py-16 text-center bg-gray-50 dark:bg-gray-900 min-h-screen">
         <h2 className="text-2xl font-bold text-gray-700 dark:text-gray-300">Auction not found</h2>
-        <button onClick={() => navigate('/')} className="mt-4 btn-primary">
-          Back to Auctions
-        </button>
+        <button onClick={() => navigate('/')} className="mt-4 btn-primary">Back to Auctions</button>
       </div>
     );
   }
 
-  const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'live':
-        return 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200';
-      case 'finished':
-        return 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200';
-      case 'reservenotmet':
-        return 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200';
-      default:
-        return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200';
-    }
-  };
+  const isLive = auction.status?.toLowerCase() === 'live';
+  const isSeller = username === auction.seller;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
@@ -72,6 +130,7 @@ export default function AuctionDetails() {
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Left column */}
           <div className="space-y-4">
             <div className="card overflow-hidden">
               <img
@@ -80,8 +139,36 @@ export default function AuctionDetails() {
                 className="w-full h-96 object-cover"
               />
             </div>
+
+            {/* Bid History */}
+            <div className="card p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Bid History ({bids.length})
+              </h3>
+              {bids.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">No bids yet. Be the first!</p>
+              ) : (
+                <div className="space-y-3 max-h-64 overflow-y-auto">
+                  {bids.map((bid, i) => (
+                    <div key={i} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{bid.bidder}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {format(new Date(bid.bidTime), 'MMM d, HH:mm:ss')}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-gray-900 dark:text-white">${bid.amount?.toLocaleString()}</p>
+                        <p className={`text-xs font-medium ${getBidStatusColor(bid.bidStatus)}`}>{bid.bidStatus}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
+          {/* Right column */}
           <div className="space-y-6">
             <div className="card p-6">
               <div className="flex items-start justify-between mb-4">
@@ -121,7 +208,6 @@ export default function AuctionDetails() {
                       <p className="font-semibold text-gray-900 dark:text-white">{auction.mileage?.toLocaleString()} km</p>
                     </div>
                   </div>
-
                   <div className="flex items-center space-x-3">
                     <Palette className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                     <div>
@@ -129,7 +215,6 @@ export default function AuctionDetails() {
                       <p className="font-semibold text-gray-900 dark:text-white">{auction.color}</p>
                     </div>
                   </div>
-
                   <div className="flex items-center space-x-3">
                     <Calendar className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                     <div>
@@ -137,7 +222,6 @@ export default function AuctionDetails() {
                       <p className="font-semibold text-gray-900 dark:text-white">{auction.year}</p>
                     </div>
                   </div>
-
                   <div className="flex items-center space-x-3">
                     <User className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                     <div>
@@ -174,15 +258,39 @@ export default function AuctionDetails() {
               </div>
             </div>
 
-            {isAuthenticated && auction.status?.toLowerCase() === 'live' && (
+            {/* Place Bid */}
+            {isLive && (
               <div className="card p-6">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Place a Bid</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  Bidding functionality will be available once the Bidding Service is integrated.
-                </p>
-                <button className="w-full btn-primary" disabled>
-                  Place Bid (Coming Soon)
-                </button>
+                {!isAuthenticated ? (
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <button onClick={() => navigate('/login')} className="text-blue-600 dark:text-blue-400 underline">Log in</button> to place a bid.
+                  </p>
+                ) : isSeller ? (
+                  <p className="text-sm text-yellow-600 dark:text-yellow-400">You cannot bid on your own auction.</p>
+                ) : (
+                  <form onSubmit={handlePlaceBid} className="flex gap-3">
+                    <div className="relative flex-1">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={bidAmount}
+                        onChange={(e) => setBidAmount(e.target.value)}
+                        placeholder={auction.currentHighBid ? `More than $${auction.currentHighBid.toLocaleString()}` : 'Enter amount'}
+                        className="w-full pl-7 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={bidding}
+                      className="btn-primary whitespace-nowrap disabled:opacity-50"
+                    >
+                      {bidding ? 'Placing...' : 'Place Bid'}
+                    </button>
+                  </form>
+                )}
               </div>
             )}
           </div>
